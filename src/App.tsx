@@ -1,7 +1,11 @@
-import PlayerVsPlayer from "./components/PlayerVsPlayer";
+import OnlinePVP from "./components/OnlinePVP";
 
 function App() {
-	return <PlayerVsPlayer />;
+	return (
+		<div className="w-full h-screen">
+			<OnlinePVP />
+		</div>
+	);
 }
 
 export default App;

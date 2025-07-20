@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
+import { socket } from "../../socket";
 import { cn } from "../../utils";
 
-const PlayerVsPlayer = () => {
+const OnlinePVP = () => {
+	const [isConnected, setIsConnected] = useState(false);
+	const [value, setValue] = useState(0);
+
 	const [board, setBoard] = useState(Array(9).fill(""));
 	const [turn, setTurn] = useState("X");
 	const [winner, setWinner] = useState<string | null>(null);
@@ -21,6 +25,70 @@ const PlayerVsPlayer = () => {
 		const tap = new Audio("/tap.mp3");
 		tap.play();
 	};
+
+	useEffect(() => {
+		function onConnect() {
+			setIsConnected(true);
+		}
+
+		function onDisconnect() {
+			setIsConnected(false);
+		}
+
+		function onFooEvent(value) {
+			setValue(value);
+		}
+
+		socket.on("connect", onConnect);
+
+		socket.on("disconnect", onDisconnect);
+		socket.on("gameUpdate", onFooEvent);
+
+		return () => {
+			socket.off("connect", onConnect);
+			socket.off("disconnect", onDisconnect);
+			socket.off("gameUpdate", onFooEvent);
+			socket.off("gameUpdate", onFooEvent);
+		};
+	}, []);
+
+	useEffect(() => {
+		socket.on("move", ({ i, value }) => {
+			console.log("i", i, value);
+			const newBoard = [...board];
+			newBoard[i] = value;
+			setBoard(newBoard);
+		});
+
+		return () => {
+			socket.off("move");
+		};
+	}, [board]);
+
+	useEffect(() => {
+		socket.on("winnerData", ({ win, winLine }) => {
+			setWinner(win);
+			setWinLine(winLine);
+		});
+
+		return () => {
+			socket.off("winnerData");
+		};
+	}, []);
+
+	useEffect(() => {
+		socket.on("reset", ({ board, turn, winner }) => {
+			setBoard(board);
+			setTurn(turn);
+			setWinner(winner);
+
+			console.log("board turn winner", board, turn, winner);
+		});
+
+		return () => {
+			socket.off("reset");
+		};
+	}, []);
 
 	useEffect(() => {
 		if (winner === "X" || winner === "O") {
@@ -69,21 +137,25 @@ const PlayerVsPlayer = () => {
 		const { winner: win, winLine } = checkWinner(newBoard);
 		setWinner(win);
 		setWinLine(winLine);
+		socket.emit("winnerData", { win, winLine });
 		if (!win) setTurn(turn === "X" ? "O" : "X");
-
 		setTurn(turn === "X" ? "O" : "X");
+		socket.emit("move", { i, value: turn });
 	};
 
 	const handleReset = () => {
-		setBoard(Array(9).fill(""));
+		const defaultBoard = Array(9).fill("");
+		setBoard(defaultBoard);
 		setTurn("X");
 		setWinner(null);
+
+		socket.emit("reset", { board: defaultBoard, turn: "X", winner: null });
 	};
 
 	return (
-		<div className=" bg-blue-950 min-h-screen w-full flex  items-center justify-center">
+		<div className=" bg-blue-950 h-full w-full flex  items-center justify-center">
 			<div>
-				<div className="w-[500px] h-[500px] grid grid-cols-3 grid-rows-3 gap-0 border-2  container mx-auto text-6xl ">
+				<div className="w-[240px] h-[240px] md:w-[500px] md:h-[500px] grid grid-cols-3 grid-rows-3 gap-0 border-2  container mx-auto text-3xl  md:text-6xl ">
 					{board.map((x, i) => (
 						<button
 							type="button"
@@ -140,4 +212,4 @@ const PlayerVsPlayer = () => {
 	);
 };
 
-export default PlayerVsPlayer;
+export default OnlinePVP;
