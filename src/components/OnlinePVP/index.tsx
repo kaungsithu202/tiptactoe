@@ -5,9 +5,12 @@ import { cn } from "../../utils";
 const OnlinePVP = () => {
 	const [isConnected, setIsConnected] = useState(false);
 	const [value, setValue] = useState(0);
+	const [currentPlayerId, setCurrentPlayerId] = useState<string | null>(null);
+
+	const [playerRoles, setPlayerRoles] = useState<string[]>([]);
 
 	const [board, setBoard] = useState(Array(9).fill(""));
-	const [turn, setTurn] = useState("X");
+	// const [turn, setTurn] = useState("X");
 	const [winner, setWinner] = useState<string | null>(null);
 	const [winLine, setWinLine] = useState<number[] | []>([]);
 
@@ -29,6 +32,13 @@ const OnlinePVP = () => {
 	useEffect(() => {
 		function onConnect() {
 			setIsConnected(true);
+			setCurrentPlayerId(socket.id);
+		}
+
+		function onPlayerRoles(roles) {
+			console.log("roles", roles);
+
+			setPlayerRoles(roles);
 		}
 
 		function onDisconnect() {
@@ -43,12 +53,13 @@ const OnlinePVP = () => {
 
 		socket.on("disconnect", onDisconnect);
 		socket.on("gameUpdate", onFooEvent);
+		socket.on("player-roles", onPlayerRoles);
 
 		return () => {
 			socket.off("connect", onConnect);
 			socket.off("disconnect", onDisconnect);
 			socket.off("gameUpdate", onFooEvent);
-			socket.off("gameUpdate", onFooEvent);
+			socket.off("player-roles", onPlayerRoles);
 		};
 	}, []);
 
@@ -65,6 +76,8 @@ const OnlinePVP = () => {
 		};
 	}, [board]);
 
+	console.log("currentPlayerId", currentPlayerId);
+
 	useEffect(() => {
 		socket.on("winnerData", ({ win, winLine }) => {
 			setWinner(win);
@@ -79,7 +92,7 @@ const OnlinePVP = () => {
 	useEffect(() => {
 		socket.on("reset", ({ board, turn, winner }) => {
 			setBoard(board);
-			setTurn(turn);
+			// setTurn(turn);
 			setWinner(winner);
 
 			console.log("board turn winner", board, turn, winner);
@@ -101,6 +114,10 @@ const OnlinePVP = () => {
 			playDrawSound();
 		}
 	}, [winner, playDrawSound]);
+
+	const role = playerRoles?.find((r) => r.id === currentPlayerId)?.role;
+
+	const turn = role === "player1" ? "X" : "O";
 
 	const checkWinner = (board: string[]) => {
 		const lines = [
@@ -138,19 +155,24 @@ const OnlinePVP = () => {
 		setWinner(win);
 		setWinLine(winLine);
 		socket.emit("winnerData", { win, winLine });
-		if (!win) setTurn(turn === "X" ? "O" : "X");
-		setTurn(turn === "X" ? "O" : "X");
+
+		console.log("role", role);
+
+		// if (!win) setTurn(role === "player1" ? "X" : "O");
+		// setTurn(role === "player1" ? "X" : "O");
 		socket.emit("move", { i, value: turn });
 	};
 
 	const handleReset = () => {
 		const defaultBoard = Array(9).fill("");
 		setBoard(defaultBoard);
-		setTurn("X");
+		// setTurn("X");
 		setWinner(null);
 
 		socket.emit("reset", { board: defaultBoard, turn: "X", winner: null });
 	};
+
+	console.log("playerRoles", playerRoles);
 
 	return (
 		<div className=" bg-blue-950 h-full w-full flex  items-center justify-center">
@@ -194,7 +216,10 @@ const OnlinePVP = () => {
 						)
 					) : (
 						<p className="font-press font-bold">
-							Turn: <span className=" ">{turn}</span>
+							Turn:{" "}
+							<span className=" ">
+								{role === "player1" ? "Player 2" : "Player 1"}
+							</span>
 						</p>
 					)}
 				</div>

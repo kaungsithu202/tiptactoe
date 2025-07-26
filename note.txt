@@ -1,0 +1,6 @@
+player 1 => x -> need to wait player 2 response => player 1 can not click cell
+
+player 2 => o -> need to wait player 1 response => player 2 can not click cell
+
+
+how can we know player 1 is x or o?
