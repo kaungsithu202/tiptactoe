@@ -1,77 +1,18 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { socket } from "../../socket";
 import OnlinePVPGame from "./OnlinePVPGame";
 import RoomItem from "./RoomItem";
 
-// reset game not wokring on other side
-
-interface Message {
-	id: number;
-	text: string;
-	timestamp: string;
-}
-
-interface GameState {
-	board: null[] | string[];
-	currentPlayer: string;
-	gameStatus: string;
-	winner: null;
-	playerX: string;
-	playerO: string;
-}
-
-interface UpdateGameState {
-	gameState: GameState;
-	playerX: string;
-	playerO: string;
-	currentPlayer: string;
-	message?: string;
-}
-
-interface RoomData {
-	id: string;
-	name: string;
-	creator: string;
-	members: string[];
-	maxMembers: number;
-	isPrivate: boolean;
-	createdAt: string;
-	gameState: GameState;
-}
-
-interface CreateRoomResponse {
-	success: boolean;
-	roomId: string;
-	roomData: RoomData;
-	message?: string;
-	playerSymbol?: "X" | "O";
-}
-
-type joinRoomResponse = CreateRoomResponse;
-
 const OnlinePVP = () => {
 	const [isConnected, setIsConnected] = useState(false);
 	const [roomName, setRoomName] = useState("");
 	const [rooms, setRooms] = useState([]);
-	const [currentRoom, setCurrentRoom] = useState<RoomData | null>(null);
-	const [playerSymbol, setPlayerSymbol] = useState<"X" | "O" | undefined>(
-		undefined,
-	);
-	const [gameState, setGameState] = useState<GameState | null>(null);
-	const [messages, setMessages] = useState<Message[] | []>([]);
+	const [currentRoom, setCurrentRoom] = useState(null);
+	const [playerSymbol, setPlayerSymbol] = useState(null);
+	const [gameState, setGameState] = useState(null);
+	const [messages, setMessages] = useState([]);
 	const [isLoading, setIsLoading] = useState(false);
-
-	const addMessage = useCallback((message: string) => {
-		setMessages((prev) => [
-			...prev,
-			{
-				id: Date.now(),
-				text: message,
-				timestamp: new Date().toLocaleTimeString(),
-			},
-		]);
-	}, []);
 
 	useEffect(() => {
 		function onConnect() {
@@ -84,32 +25,29 @@ const OnlinePVP = () => {
 			toast.error("Disconnected from server");
 		}
 
-		function onGameStarted(data: UpdateGameState) {
+		function onGameStarted(data) {
 			setGameState(data.gameState);
 			toast.success("Game started! Player X goes first.");
 		}
 
-		function onPlayerJoined(data: UpdateGameState) {
-			console.log("onPlayerJoined data", data);
-
-			addMessage(data?.message ?? "");
+		function onPlayerJoined(data) {
+			addMessage(data.message);
 			setGameState(data.gameState);
 		}
 
-		function onPlayerLeft(data: UpdateGameState) {
-			console.log("onPlayerLeft data", data);
-
-			addMessage(data?.message ?? "");
+		function onPlayerLeft(data) {
+			addMessage(data.message);
 			setGameState(data.gameState);
-			setPlayerSymbol("X");
+			setPlayerSymbol("X"); // Remaining player becomes X
 		}
 
-		function onPlayerDisconnected(data: UpdateGameState) {
-			addMessage(data?.message ?? "");
+		function onPlayerDisconnected(data) {
+			addMessage(data.message);
 			setGameState(data.gameState);
 			setPlayerSymbol("X");
 		}
 
+		// Set up socket listeners
 		socket.on("connect", onConnect);
 		socket.on("disconnect", onDisconnect);
 		socket.on("roomList", setRooms);
@@ -118,6 +56,7 @@ const OnlinePVP = () => {
 		socket.on("playerLeft", onPlayerLeft);
 		socket.on("playerDisconnected", onPlayerDisconnected);
 
+		// Check if already connected
 		if (socket.connected) {
 			setIsConnected(true);
 		}
@@ -131,7 +70,18 @@ const OnlinePVP = () => {
 			socket.off("playerLeft", onPlayerLeft);
 			socket.off("playerDisconnected", onPlayerDisconnected);
 		};
-	}, [addMessage]);
+	}, []);
+
+	const addMessage = (message) => {
+		setMessages((prev) => [
+			...prev,
+			{
+				id: Date.now(),
+				text: message,
+				timestamp: new Date().toLocaleTimeString(),
+			},
+		]);
+	};
 
 	const handleCreateRoom = () => {
 		if (!socket || !isConnected) {
@@ -146,26 +96,24 @@ const OnlinePVP = () => {
 			isPrivate: false,
 		};
 
-		socket.emit("createRoom", roomData, (response: CreateRoomResponse) => {
-			console.log("createRoom response", response);
-
+		socket.emit("createRoom", roomData, (response) => {
 			setIsLoading(false);
 
 			if (response.success) {
-				setCurrentRoom(response?.roomData);
+				setCurrentRoom(response.roomData);
 				setPlayerSymbol("X");
 				setGameState(response.roomData.gameState);
 				addMessage(`Room "${response.roomData.name}" created successfully!`);
 				toast.success("Room created! You are Player X");
 				setRoomName("");
 			} else {
-				addMessage(`Failed to create room: ${response?.message}`);
-				toast.error(`Failed to create room: ${response?.message}`);
+				addMessage("Failed to create room: " + response.message);
+				toast.error("Failed to create room: " + response.message);
 			}
 		});
 	};
 
-	const handleJoinRoom = (roomId: string) => {
+	const handleJoinRoom = (roomId) => {
 		if (!socket || !isConnected) {
 			toast.error("Not connected to server");
 			return;
@@ -174,13 +122,11 @@ const OnlinePVP = () => {
 		setIsLoading(true);
 		addMessage("Joining room...");
 
-		socket.emit("joinRoom", roomId, (response: joinRoomResponse) => {
-			console.log("joinRoom", response);
-
+		socket.emit("joinRoom", roomId, (response) => {
 			setIsLoading(false);
 
 			if (response.success) {
-				setCurrentRoom(response?.roomData);
+				setCurrentRoom(response.roomData);
 				setPlayerSymbol(response.playerSymbol);
 				setGameState(response.roomData.gameState);
 
@@ -202,8 +148,6 @@ const OnlinePVP = () => {
 		if (!currentRoom || !socket) return;
 
 		socket.emit("leaveRoom", currentRoom.id, (response) => {
-			console.log("leaveRoom response", response);
-
 			if (response.success) {
 				setCurrentRoom(null);
 				setPlayerSymbol(null);
@@ -233,11 +177,13 @@ const OnlinePVP = () => {
 								Players: <strong>{currentRoom.members.length}/2</strong>
 							</span>
 						</div>
+
 						{gameState && gameState.gameStatus === "waiting" && (
 							<div className="text-yellow-400 mb-4">
 								⏳ Waiting for Player O to join...
 							</div>
 						)}
+
 						{gameState && gameState.gameStatus === "playing" && (
 							<div className="text-green-400 mb-4">
 								🎮 Game in progress!
@@ -246,18 +192,17 @@ const OnlinePVP = () => {
 									: " Opponent's turn"}
 							</div>
 						)}
+
 						<button
-							type="button"
 							onClick={handleLeaveRoom}
-							className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded cursor-pointer"
+							className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
 						>
 							🚪 Leave Room
 						</button>
-						t
 					</div>
 					<OnlinePVPGame
 						roomData={currentRoom}
-						playerSymbolProps={playerSymbol}
+						playerSymbol={playerSymbol}
 						initialGameState={gameState}
 						onLeaveRoom={handleLeaveRoom}
 					/>
@@ -296,7 +241,7 @@ const OnlinePVP = () => {
 						placeholder="Room name (optional)"
 						value={roomName}
 						onChange={(e) => setRoomName(e.target.value)}
-						className="w-full p-3 rounded border-2 border-gray-300 mb-2 text-white"
+						className="w-full p-3 rounded border-2 border-gray-300 mb-2"
 						maxLength={30}
 					/>
 					<button

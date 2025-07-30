@@ -82,7 +82,7 @@ const LocalPVP = () => {
 	};
 
 	return (
-		<div className=" bg-blue-950 min-h-screen w-full flex  items-center justify-center">
+		<div className="  min-h-screen w-full flex  items-center justify-center">
 			<div>
 				<div className="w-[500px] h-[500px] grid grid-cols-3 grid-rows-3 gap-0 border-2  container mx-auto text-6xl ">
 					{board.map((x, i) => (
